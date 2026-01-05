@@ -10,9 +10,11 @@ class GeminiProvider extends ChangeNotifier {
   Uint8List? _pdfBytes;
   String _responseMessage = "Sube un contrato para analizarlo.";
   bool _isLoading = false;
+
+  // Controlador para el visor de PDF
   final PdfViewerController _pdfController = PdfViewerController();
 
-  // Getters para la UI
+  // Getters para la interfaz de usuario
   Uint8List? get pdfBytes => _pdfBytes;
   String get responseMessage => _responseMessage;
   bool get isLoading => _isLoading;
@@ -22,6 +24,7 @@ class GeminiProvider extends ChangeNotifier {
     _initModel();
   }
 
+  // Inicializa el modelo usando la API Key del archivo .env
   void _initModel() {
     final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
     if (apiKey.isEmpty) return;
@@ -30,23 +33,26 @@ class GeminiProvider extends ChangeNotifier {
       model: 'gemini-2.0-flash',
       apiKey: apiKey,
       systemInstruction: Content.system(
-        'Eres un Analista Legal Pro. Analiza el PDF y responde ÚNICAMENTE en JSON. '
-        'Formato: {"respuesta": "tu análisis", "cita": "frase exacta para buscar"}',
+        'Eres un Analista Legal experto. Analiza el PDF adjunto y responde estrictamente en formato JSON. '
+        'Formato: {"respuesta": "tu análisis aquí", "cita": "texto exacto del PDF para resaltar"}',
       ),
     );
   }
 
+  // Carga los bytes del PDF seleccionado
   void setPdf(Uint8List bytes) {
     _pdfBytes = bytes;
-    _responseMessage = "Documento cargado correctamente.";
+    _responseMessage =
+        "Documento cargado correctamente. ¿En qué puedo ayudarte?";
     notifyListeners();
   }
 
+  // Envía la consulta a Gemini 2.0
   Future<void> preguntar(String query, BuildContext context) async {
     if (_pdfBytes == null || _model == null) return;
 
     _isLoading = true;
-    _responseMessage = "Gemini está analizando...";
+    _responseMessage = "Gemini está procesando el contrato...";
     notifyListeners();
 
     try {
@@ -60,37 +66,40 @@ class GeminiProvider extends ChangeNotifier {
       final response = await _model!.generateContent(content);
       final rawText = response.text ?? "{}";
 
-      // Limpiar el JSON de bloques de código Markdown
+      // Limpieza de formato Markdown si Gemini lo incluye
       final cleanJson = rawText
           .replaceAll('```json', '')
           .replaceAll('```', '')
           .trim();
       final Map<String, dynamic> data = jsonDecode(cleanJson);
 
-      _responseMessage = data['respuesta'] ?? "No se obtuvo respuesta.";
+      _responseMessage =
+          data['respuesta'] ?? "No se obtuvo una respuesta válida.";
 
-      // Resaltado automático
+      // LÓGICA DE BÚSQUEDA Y RESALTADO
       if (data['cita'] != null && data['cita'].toString().isNotEmpty) {
         _pdfController.clearSelection();
+
+        // Usamos la firma más compatible para evitar errores de versión
         _pdfController.searchText(data['cita'].toString());
       }
     } catch (e) {
-      _responseMessage = "Hubo un error en la consulta.";
-      debugPrint("Error Gemini: $e");
+      _responseMessage = "Ocurrió un error al analizar el documento.";
+      debugPrint("Error de Gemini: $e");
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  // Método para resetear solo el texto de la respuesta y limpiar resaltados
+  // Resetea la respuesta para volver a ver el PDF limpio
   void resetResponse() {
     _responseMessage = "Documento cargado correctamente.";
     _pdfController.clearSelection();
     notifyListeners();
   }
 
-  // Limpiar todo para subir un nuevo documento
+  // Borra el documento actual
   void clear() {
     _pdfBytes = null;
     _responseMessage = "Sube un contrato para analizarlo.";

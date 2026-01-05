@@ -2,238 +2,99 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:legal_analyzer/gemeni_provider.dart';
 import 'package:provider/provider.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
+import 'ui/screens/home_screen.dart';
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: ".env");
-
-  runApp(
-    ChangeNotifierProvider(
-      create: (_) => GeminiProvider(),
-      child: const LegalApp(),
-    ),
-  );
+  runApp(const MyApp());
 }
 
-class LegalApp extends StatelessWidget {
-  const LegalApp({super.key});
+class MyApp extends StatefulWidget {
+  const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  // Definimos el Future en una variable para evitar que se reinicie al reconstruir el widget
+  late Future<void> _initializationFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializationFuture = _initApp();
+  }
+
+  Future<void> _initApp() async {
+    // FORZAMOS 3 SEGUNDOS DE ESPERA REAL
+    await Future.delayed(const Duration(seconds: 3));
+    await dotenv.load(fileName: ".env");
+  }
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'LegalTech Gemini 2.0',
-      theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.indigo),
-      home: const HomeScreen(),
+    return FutureBuilder(
+      future: _initializationFuture,
+      builder: (context, snapshot) {
+        // 1. Si todavía está cargando...
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const MaterialApp(
+            debugShowCheckedModeBanner: false,
+            home: LoadingScreen(),
+          );
+        }
+
+        // 2. Si terminó, cargamos la App con el Provider
+        return MultiProvider(
+          providers: [ChangeNotifierProvider(create: (_) => GeminiProvider())],
+          child: MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: ThemeData(
+              useMaterial3: true,
+              colorSchemeSeed: Colors.indigo,
+            ),
+            home: const HomeScreen(),
+          ),
+        );
+      },
     );
   }
 }
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
-
-  @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
-  final TextEditingController _textController = TextEditingController();
+// Pantalla de Carga de Alto Impacto
+class LoadingScreen extends StatelessWidget {
+  const LoadingScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<GeminiProvider>(context);
-
     return Scaffold(
-      backgroundColor: Colors.grey[100],
-      appBar: AppBar(
-        title: const Text("Analista de Contratos AI"),
-        centerTitle: true,
-        backgroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          if (provider.pdfBytes != null)
-            IconButton(
-              icon: const Icon(
-                Icons.delete_sweep,
-                color: Color.fromARGB(255, 138, 18, 18),
-              ),
-              onPressed: () => provider.clear(),
-            ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // ÁREA DEL PDF O BOTÓN CENTRAL
-          Expanded(
-            child: provider.pdfBytes != null
-                ? SfPdfViewer.memory(
-                    provider.pdfBytes!,
-                    controller: provider.pdfController,
-                  )
-                : _buildEmptyState(provider),
-          ),
-
-          // PANEL INFERIOR (Solo si hay un PDF cargado)
-          if (provider.pdfBytes != null) _buildChatPanel(provider, context),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyState(GeminiProvider provider) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.description_rounded, size: 100, color: Colors.indigo[100]),
-          const SizedBox(height: 20),
-          const Text(
-            "Análisis Legal Inteligente",
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 30),
-          ElevatedButton.icon(
-            onPressed: () => _handlePickFile(provider),
-            icon: const Icon(Icons.file_upload),
-            label: const Text("SELECCIONAR PDF"),
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildChatPanel(GeminiProvider provider, BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Container(
-        margin: const EdgeInsets.all(12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, -5),
-            ),
-          ],
-        ),
+      backgroundColor:
+          Colors.indigo[900], // Fondo oscuro para que se vea SI O SI
+      body: Center(
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Cabecera con botón para cerrar respuesta
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  provider.isLoading ? "Procesando..." : "Análisis",
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.indigo[300],
-                  ),
-                ),
-                // BOTÓN PARA SALIR DE LA RESPUESTA
-                if (!provider.isLoading &&
-                    provider.responseMessage !=
-                        "Documento cargado correctamente.")
-                  GestureDetector(
-                    onTap: () => provider.resetResponse(),
-                    child: const Icon(
-                      Icons.close,
-                      size: 20,
-                      color: Colors.grey,
-                    ),
-                  ),
-              ],
+            const Icon(Icons.gavel_rounded, size: 100, color: Colors.white),
+            const SizedBox(height: 40),
+            // Spinner blanco sobre fondo azul oscuro
+            const CircularProgressIndicator(
+              color: Colors.white,
+              strokeWidth: 6,
             ),
-
-            if (provider.isLoading)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8.0),
-                child: LinearProgressIndicator(),
+            const SizedBox(height: 30),
+            const Text(
+              "CONFIGURANDO IA LEGAL...",
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 2,
               ),
-
-            // Texto de respuesta con scroll
-            Flexible(
-              child: Container(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(context).size.height * 0.35,
-                ),
-                child: SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    child: Text(
-                      provider.responseMessage,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-            // Campo de entrada tipo píldora
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _textController,
-                    onSubmitted: (val) => _sendQuery(provider, context),
-                    decoration: InputDecoration(
-                      hintText: "Preguntar algo...",
-                      filled: true,
-                      fillColor: Colors.grey[100],
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(30),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                CircleAvatar(
-                  backgroundColor: Colors.indigo,
-                  child: IconButton(
-                    icon: const Icon(Icons.arrow_upward, color: Colors.white),
-                    onPressed: () => _sendQuery(provider, context),
-                  ),
-                ),
-              ],
             ),
           ],
         ),
       ),
     );
-  }
-
-  void _sendQuery(GeminiProvider provider, BuildContext context) {
-    if (_textController.text.isNotEmpty && !provider.isLoading) {
-      provider.preguntar(_textController.text, context);
-      _textController.clear();
-      FocusScope.of(context).unfocus();
-    }
-  }
-
-  Future<void> _handlePickFile(GeminiProvider provider) async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf'],
-      withData: true,
-    );
-    if (result != null) {
-      provider.setPdf(result.files.first.bytes!);
-    }
   }
 }
