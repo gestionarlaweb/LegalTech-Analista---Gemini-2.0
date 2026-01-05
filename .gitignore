@@ -1,0 +1,36 @@
+# Archivo de variables de entorno (¡MUY IMPORTANTE!)
+.env
+
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+
+# Android
+.gradle/
+local.properties
+*.kwks
+*.keystore
+*.jks
+app/src/main/res/raw/google_services.json
+
+# iOS/macOS
+.history
+.ionide/
+DerivedData/
+Runner.vfs/
+Pods/
+Podfile.lock
+Frameworks/
+*.moved-aside
+*.xcuserstate
+
+# Otros
+.DS_Store
+*.log
+.idea/
+.vscode/
